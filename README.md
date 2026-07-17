@@ -1,14 +1,15 @@
 # Next.js Auth + Dashboard Boilerplate
 
-Boilerplate minimal menggunakan **Next.js App Router** dengan halaman:
+A minimal boilerplate built with Next.js App Router featuring authentication pages and a protected dashboard.
 
-- `/login` — halaman login
-- `/register` — halaman register
-- `/dashboard` — halaman dashboard (dilindungi, hanya bisa diakses setelah login)
-  - `/dashboard/analytics`
-  - `/dashboard/settings`
+* `/login` — Login page
+* `/register` — Registration page
+* `/dashboard` — Protected dashboard (accessible only after login)
 
-## Cara Menjalankan
+  * `/dashboard/analytics`
+  * `/dashboard/settings`
+
+## Getting Started
 
 ```bash
 cp .env.example .env.local
@@ -16,57 +17,197 @@ npm install
 npm run dev
 ```
 
-Buka `http://localhost:3000` — otomatis diarahkan ke `/login`.
+Open:
 
-## Konfigurasi API
-
-Base URL backend diatur lewat environment variable di `.env.local`:
-
+```text
+http://localhost:3000
 ```
+
+The application will automatically redirect to `/login`.
+
+---
+
+## API Configuration
+
+The backend base URL is configured through an environment variable in `.env.local`:
+
+```env
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8080/api/v1
 ```
 
-Ganti sesuai alamat backend Anda. Prefix `NEXT_PUBLIC_` wajib ada karena
-variable ini dipakai di sisi client (browser), bukan cuma server.
+Replace it with your backend API URL.
 
-Semua pemanggilan API dipusatkan lewat `lib/api.js` (fungsi `apiFetch`),
-yang otomatis:
-- Menambahkan `NEXT_PUBLIC_API_BASE_URL` di depan setiap path
-- Menyisipkan header `Authorization: Bearer <access_token>` bila token tersedia
-- **Auto-refresh token**: kalau server balas `401` (access token expired),
-  otomatis memanggil `POST /auth/refresh` menggunakan `refresh_token` yang
-  tersimpan, menyimpan token baru, lalu mengulang request aslinya sekali.
-  Kalau `/auth/refresh` juga gagal (refresh token ikut expired/invalid),
-  semua token dihapus dan user diarahkan paksa ke `/login`.
-- Beberapa request yang kena `401` secara bersamaan tidak akan memicu
-  beberapa kali panggilan refresh — semuanya menunggu satu proses refresh
-  yang sama (dedupe via shared promise).
-- **Roles/permissions ikut sinkron otomatis**: setiap kali access token
-  di-refresh, `user` (termasuk `roles` & `permissions`) dari response
-  `/auth/refresh` disimpan ulang ke `localStorage` DAN di-broadcast lewat
-  event `auth:session-refreshed` yang didengarkan oleh `AuthProvider`
-  (`lib/auth-context.js`) untuk meng-update React state. Jadi kalau role
-  user diubah di backend, perubahan itu otomatis kepakai di frontend
-  paling lambat satu siklus refresh (≤ `expires_in` detik) — **tanpa perlu
-  logout/login manual** — asalkan endpoint `/auth/refresh` di backend
-  memang mengambil ulang role/permission terbaru dari database, bukan
-  sekadar re-sign klaim lama.
-- Response backend diasumsikan berbentuk `{ success, message, data }` —
-  `apiFetch` otomatis mengembalikan isi `data` saja ke pemanggil.
+> The `NEXT_PUBLIC_` prefix is required because this variable is used on the client side (browser), not only on the server.
 
-Endpoint yang dipakai:
-- `POST /auth/login` — body `{ email, password }`
-- `POST /auth/register` — body `{ name, email, password }` (sesuaikan bila belum ada di backend)
-- `POST /auth/refresh` — body `{ refresh_token }`
-- `POST /auth/logout`
-- `GET /me` — dipanggil otomatis setiap kali app dibuka/direload untuk
-  memvalidasi access_token ke server dan mengambil roles/permissions
-  terbaru (respons diasumsikan `{ success, message, data: {...user} }`,
-  sesuaikan bila struktur `data`-nya beda). Bisa juga diaktifkan sebagai
-  polling berkala lewat `ME_POLL_INTERVAL_MS` di `lib/auth-context.js`
-  kalau ingin perubahan role kepakai lebih cepat dari siklus refresh token.
+All API calls are centralized in `lib/api.js` through the `apiFetch` function, which automatically:
 
-Response `/auth/login` dan `/auth/refresh` diasumsikan:
+* Prepends `NEXT_PUBLIC_API_BASE_URL` to every API path.
+* Adds the `Authorization: Bearer <access_token>` header when an access token is available.
+* Performs automatic token refresh when the server returns `401 Unauthorized` (expired access token).
+* Retries the original request once after a successful token refresh.
+* Removes all tokens and redirects the user to `/login` if the refresh token is invalid or expired.
+* Prevents multiple simultaneous refresh requests by using a shared promise (refresh deduplication).
+* Automatically synchronizes user roles and permissions after a successful token refresh.
+* Returns only the `data` field from the backend response.
+
+### Automatic Token Refresh
+
+When an access token expires:
+
+1. `apiFetch` automatically sends a request to `POST /auth/refresh` using the stored `refresh_token`.
+2. The newly issued access token and refresh token are saved to `localStorage`.
+3. The original API request is retried automatically.
+4. If token refresh fails, the user session is cleared and the user is redirected to `/login`.
+
+If multiple requests receive `401 Unauthorized` at the same time, only one refresh request is sent. Other requests will wait until the refresh process completes.
+
+---
+
+## Automatic Role & Permission Synchronization
+
+Whenever an access token is refreshed:
+
+* The `user` object returned by `/auth/refresh` (including `roles` and `permissions`) is stored again in `localStorage`.
+* An `auth:session-refreshed` event is broadcast.
+* `AuthProvider` (`lib/auth-context.js`) listens for this event and updates the React state automatically.
+
+This means that changes to a user's roles or permissions in the backend are automatically reflected in the frontend without requiring the user to log out and log back in.
+
+The maximum delay is one access token refresh cycle (`expires_in` seconds), provided that the backend refresh endpoint fetches the latest roles and permissions from the database instead of simply re-signing existing token claims.
+
+---
+
+## Backend Response Format
+
+The backend response is assumed to follow this structure:
+
+```json
+{
+  "success": true,
+  "message": "...",
+  "data": {}
+}
+```
+
+`apiFetch` automatically returns the contents of the `data` property to the caller.
+
+---
+
+## Authentication Endpoints
+
+The following endpoints are expected:
+
+```text
+POST /auth/login
+POST /auth/register
+POST /auth/refresh
+POST /auth/logout
+GET  /me
+```
+
+### Login
+
+```http
+POST /auth/login
+```
+
+Request body:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "password"
+}
+```
+
+---
+
+### Register
+
+```http
+POST /auth/register
+```
+
+Request body:
+
+```json
+{
+  "name": "John Doe",
+  "email": "user@example.com",
+  "password": "password"
+}
+```
+
+> Adjust the payload if your backend uses a different registration schema.
+
+---
+
+### Refresh Token
+
+```http
+POST /auth/refresh
+```
+
+Request body:
+
+```json
+{
+  "refresh_token": "..."
+}
+```
+
+---
+
+### Logout
+
+```http
+POST /auth/logout
+```
+
+---
+
+### Get Current User
+
+```http
+GET /me
+```
+
+This endpoint is automatically called whenever:
+
+* The application is opened.
+* The page is refreshed.
+
+It is used to:
+
+* Validate the access token.
+* Retrieve the latest user information.
+* Synchronize roles and permissions.
+
+The response is assumed to follow:
+
+```json
+{
+  "success": true,
+  "message": "...",
+  "data": {
+    "id": 1,
+    "name": "John Doe",
+    "roles": [],
+    "permissions": []
+  }
+}
+```
+
+Adjust the implementation if your backend returns a different response structure.
+
+You may also enable periodic polling through `ME_POLL_INTERVAL_MS` in `lib/auth-context.js` if you want role and permission changes to be reflected sooner than the token refresh interval.
+
+---
+
+## Expected Authentication Response
+
+The `/auth/login` and `/auth/refresh` endpoints are expected to return:
+
 ```json
 {
   "success": true,
@@ -76,64 +217,180 @@ Response `/auth/login` dan `/auth/refresh` diasumsikan:
     "refresh_token": "...",
     "token_type": "Bearer",
     "expires_in": 900,
-    "user": { "id": 1, "name": "...", "roles": [...], "permissions": [...] }
+    "user": {
+      "id": 1,
+      "name": "...",
+      "roles": [],
+      "permissions": []
+    }
   }
 }
 ```
 
-## Struktur Folder
+---
 
-```
+## Project Structure
+
+```text
 app/
   (auth)/
     login/page.js
     register/page.js
+
   dashboard/
-    layout.js        <- proteksi route + sidebar + navbar
-    page.js           <- overview
+    layout.js              # Route protection + sidebar + navbar
+    page.js                # Dashboard overview
     analytics/page.js
     settings/page.js
-  layout.js           <- root layout (bungkus AuthProvider)
-  page.js              <- redirect ke /login
+
+  layout.js                # Root layout (wraps AuthProvider)
+  page.js                  # Redirects to /login
+
 components/
   Sidebar.js
   Navbar.js
   ProtectedRoute.js
+
 lib/
-  auth-context.js      <- state auth (mock, pakai localStorage)
+  auth-context.js          # Authentication state using localStorage
+
 styles/
-  globals.css          <- styling minimal, siap ditimpa
+  globals.css              # Minimal styling, ready to be replaced
 ```
 
-## Auth (Mock)
+---
 
-`lib/auth-context.js` berisi context auth sederhana yang menyimpan session
-di `localStorage`. Ini **hanya untuk development/demo**. Sebelum production,
-ganti fungsi `login`, `register`, dan `logout` di file tersebut dengan
-integrasi API/auth provider asli (misalnya REST API, NextAuth.js, Firebase
-Auth, Supabase, dsb).
+## Mock Authentication
 
-## Cara Mengintegrasikan Template ThemeForest
+`lib/auth-context.js` provides a simple authentication context that stores the session in `localStorage`.
 
-1. **Copy asset statis** template (CSS, gambar, font, ikon) ke folder `public/`.
-2. Jika template menyediakan file CSS biasa (bukan komponen React), import
-   di `app/layout.js` di bawah `globals.css`, atau langsung di halaman terkait.
-3. **Ganti markup** di dalam:
-   - `app/(auth)/login/page.js` dan `app/(auth)/register/page.js` dengan
-     markup form login/register dari template — pertahankan `onSubmit`,
-     `name`, `value`, dan `onChange` pada setiap input agar logic tetap jalan.
-   - `components/Sidebar.js` dan `components/Navbar.js` dengan markup
-     sidebar/topbar dari template — pertahankan `<Link href>` untuk navigasi
-     dan tombol logout yang memanggil `logout()` dari `useAuth()`.
-   - `app/dashboard/page.js` dan sub-halaman lain dengan widget/kartu
-     statistik dari template.
-4. Jika template berbasis komponen React siap pakai, cukup import
-   komponennya langsung ke dalam page/layout terkait.
-5. Hapus class CSS placeholder di `styles/globals.css` secara bertahap
-   seiring style dari template mengambil alih.
+This implementation is intended only for development and demonstration purposes.
 
-## Menambah Halaman Dashboard Baru
+Before deploying to production, replace the `login`, `register`, and `logout` functions with a real authentication provider such as:
 
-Buat folder baru di dalam `app/dashboard/`, misalnya `app/dashboard/users/page.js`.
-Karena sudah dibungkus oleh `app/dashboard/layout.js`, halaman baru otomatis
-mendapat sidebar, navbar, dan proteksi login tanpa perlu setup ulang.
+* REST API
+* NextAuth.js
+* Firebase Authentication
+* Supabase Auth
+* Clerk
+* Auth0
+* Custom JWT authentication
+
+---
+
+## Integrating a ThemeForest Template
+
+### 1. Copy Static Assets
+
+Copy the template's static assets (CSS, images, fonts, icons, etc.) into the `public/` directory.
+
+---
+
+### 2. Import Template Styles
+
+If the template provides standard CSS files (not React components), import them inside `app/layout.js` below `globals.css`, or directly within the relevant pages.
+
+---
+
+### 3. Replace Authentication Pages
+
+Replace the markup inside:
+
+```text
+app/(auth)/login/page.js
+app/(auth)/register/page.js
+```
+
+with the login and registration forms from your template.
+
+Make sure to preserve:
+
+* `onSubmit`
+* `name`
+* `value`
+* `onChange`
+
+so that the authentication logic continues to work properly.
+
+---
+
+### 4. Replace Dashboard Components
+
+Replace the following components with the template's dashboard layout:
+
+```text
+components/Sidebar.js
+components/Navbar.js
+```
+
+Be sure to keep:
+
+```jsx
+<Link href="...">
+```
+
+for navigation and the logout button that calls:
+
+```jsx
+logout()
+```
+
+from:
+
+```jsx
+useAuth()
+```
+
+---
+
+### 5. Customize Dashboard Pages
+
+Replace the placeholder dashboard pages with the widgets and components provided by your template:
+
+```text
+app/dashboard/page.js
+app/dashboard/analytics/page.js
+app/dashboard/settings/page.js
+```
+
+Examples:
+
+* Statistics cards
+* Charts
+* Tables
+* Reports
+* Activity feeds
+* Custom widgets
+
+---
+
+### 6. Remove Placeholder Styles
+
+Gradually remove the placeholder styles inside:
+
+```text
+styles/globals.css
+```
+
+as the template's styles take over.
+
+---
+
+## Adding New Dashboard Pages
+
+To create a new protected dashboard page, simply add a folder inside `app/dashboard/`.
+
+Example:
+
+```text
+app/dashboard/users/page.js
+```
+
+Since every page under `app/dashboard/` is wrapped by `app/dashboard/layout.js`, it automatically inherits:
+
+* Route protection
+* Sidebar
+* Navbar
+* Shared dashboard layout
+
+No additional setup is required.
