@@ -19,7 +19,7 @@ function MenuItem({ item }) {
         return (
             <li>
                 <Link href={item.path || "#"} className={isActive ? "active" : ""}>
-                    {item.icon && <i className={item.icon}></i>}
+                    <i className={`bx ${item.icon} icon nav-icon`}></i>
                     <span>{item.name}</span>
                 </Link>
             </li>
@@ -34,7 +34,7 @@ function MenuItem({ item }) {
     return (
         <li className={open ? "mm-active" : ""}>
             <a href="#" className="has-arrow" onClick={handleToggle}>
-                {item.icon && <i className={item.icon}></i>}
+                <i className={`bx ${item.icon} icon nav-icon`}></i>
                 <span>{item.name}</span>
             </a>
             <ul className={`sub-menu ${open ? "mm-show" : "mm-collapse"}`}>

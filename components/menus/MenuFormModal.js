@@ -9,10 +9,36 @@ export const emptyMenuForm = {
   icon: "",
   order_index: "",
   is_active: true,
-  permissions: "",
+  permissions: [], // now an array of permission names, not a comma string
 };
 
-export default function MenuFormModal({ form, setForm, onSubmit, onClose, saving, error }) {
+function buildParentLabel(menu, depth) {
+  const indent = depth > 0 ? "— ".repeat(depth) : "";
+  return `${indent}${menu.name}`;
+}
+
+export default function MenuFormModal({
+  form,
+  setForm,
+  onSubmit,
+  onClose,
+  saving,
+  error,
+  parentOptions = [],
+  permissionOptions = [],
+}) {
+  function togglePermission(name) {
+    setForm((prev) => {
+      const has = prev.permissions.includes(name);
+      return {
+        ...prev,
+        permissions: has
+          ? prev.permissions.filter((p) => p !== name)
+          : [...prev.permissions, name],
+      };
+    });
+  }
+
   return (
     <>
       <div className="modal show d-block" tabIndex={-1} role="dialog">
@@ -25,6 +51,27 @@ export default function MenuFormModal({ form, setForm, onSubmit, onClose, saving
               </div>
               <div className="modal-body">
                 {error && <div className="alert alert-danger">{error}</div>}
+
+                <div className="mb-3">
+                  <label className="form-label">Parent Menu</label>
+                  <select
+                    className="form-select"
+                    value={form.parent_id ?? ""}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        parent_id: e.target.value === "" ? null : Number(e.target.value),
+                      })
+                    }
+                  >
+                    <option value="">— Top Level (No Parent) —</option>
+                    {parentOptions.map(({ menu, depth }) => (
+                      <option key={menu.id} value={menu.id}>
+                        {buildParentLabel(menu, depth)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
                 <div className="mb-3">
                   <label className="form-label">Name</label>
@@ -69,27 +116,36 @@ export default function MenuFormModal({ form, setForm, onSubmit, onClose, saving
                     onChange={(e) => setForm({ ...form, order_index: e.target.value })}
                   />
                 </div>
+
                 <div className="mb-3">
-                  <label className="form-label">
-                    Permissions (pisahkan dengan spasi)
-                  </label>
-                  <input
-                    className="form-control"
-                    value={form.permissions}
-                    onChange={(e) => {
-                      let value = e.target.value;
-
-                      value = value.replace(/\s+/g, ", ");
-
-                      value = value.replace(/,\s*,+/g, ", ");
-
-                      setForm({
-                        ...form,
-                        permissions: value,
-                      });
-                    }}
-                  />
+                  <label className="form-label">Permissions</label>
+                  <div
+                    className="border rounded p-2"
+                    style={{ maxHeight: "180px", overflowY: "auto" }}
+                  >
+                    {permissionOptions.length === 0 && (
+                      <div className="text-muted small">No permissions available</div>
+                    )}
+                    {permissionOptions.map((perm) => (
+                      <div className="form-check" key={perm.id}>
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          id={`perm-${perm.id}`}
+                          checked={form.permissions.includes(perm.name)}
+                          onChange={() => togglePermission(perm.name)}
+                        />
+                        <label className="form-check-label" htmlFor={`perm-${perm.id}`}>
+                          {perm.name}
+                          {perm.description && (
+                            <span className="text-muted"> — {perm.description}</span>
+                          )}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+
                 <div className="form-check form-switch">
                   <input
                     type="checkbox"
@@ -102,19 +158,10 @@ export default function MenuFormModal({ form, setForm, onSubmit, onClose, saving
                 </div>
               </div>
               <div className="modal-footer d-flex justify-content-end gap-2">
-                <button
-                  type="submit"
-                  className="btn btn-primary w-auto"
-                  disabled={saving}
-                >
+                <button type="submit" className="btn btn-primary w-auto" disabled={saving}>
                   {saving ? "Saving..." : "Save"}
                 </button>
-
-                <button
-                  type="button"
-                  className="btn btn-secondary w-auto"
-                  onClick={onClose}
-                >
+                <button type="button" className="btn btn-secondary w-auto" onClick={onClose}>
                   Close
                 </button>
               </div>

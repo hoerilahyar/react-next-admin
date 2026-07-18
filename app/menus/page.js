@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { waitForGlobal } from "@/lib/chart-utils";
-import { apiFetch } from "@/lib/api";
+import { getMenus, createMenu, updateMenu, deleteMenu, syncMenuPermissions } from "@/lib/menus";
+import { getPermissions } from "@/lib/permissions";
 import MenuFormModal, { emptyMenuForm } from "@/components/menus/MenuFormModal";
 
 const columns = [
@@ -21,6 +22,12 @@ function flattenMenus(menus, depth = 0, acc = []) {
     acc.push({ menu, depth });
     if (menu.children?.length) flattenMenus(menu.children, depth + 1, acc);
   });
+  return acc;
+}
+
+function collectSubtreeIds(menu, acc = []) {
+  acc.push(menu.id);
+  menu.children?.forEach((child) => collectSubtreeIds(child, acc));
   return acc;
 }
 
@@ -48,8 +55,18 @@ export default function MenusPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  const [permissionOptions, setPermissionOptions] = useState([]);
+  const [excludedParentIds, setExcludedParentIds] = useState([]);
+  const [originalPermissions, setOriginalPermissions] = useState([]);
+
+  useEffect(() => {
+    getPermissions()
+      .then(setPermissionOptions)
+      .catch(() => setPermissionOptions([]));
+  }, []);
+
   const loadGridData = useCallback(async () => {
-    const menus = await apiFetch("/menus");
+    const menus = await getMenus();
     const flat = flattenMenus(menus);
     flatMenusRef.current = flat;
 
@@ -129,6 +146,8 @@ export default function MenusPage() {
 
   function openAddModal() {
     setForm(emptyMenuForm);
+    setExcludedParentIds([]);
+    setOriginalPermissions([]);
     setError(null);
     setShowModal(true);
   }
@@ -136,6 +155,7 @@ export default function MenusPage() {
   function openEditModal(id) {
     const found = flatMenusRef.current.find(({ menu }) => menu.id === id)?.menu;
     if (!found) return;
+
     setForm({
       id: found.id,
       parent_id: found.parent_id,
@@ -145,8 +165,10 @@ export default function MenusPage() {
       icon: found.icon ?? "",
       order_index: found.order_index,
       is_active: found.is_active,
-      permissions: found.permissions?.join(", ") ?? "",
+      permissions: found.permissions ?? [],
     });
+    setExcludedParentIds(collectSubtreeIds(found));
+    setOriginalPermissions(found.permissions ?? []);
     setError(null);
     setShowModal(true);
   }
@@ -168,21 +190,16 @@ export default function MenusPage() {
 
   async function handleDelete(id) {
     const confirmed = await showDeleteConfirmation();
-
     if (!confirmed) return;
 
     try {
-      await apiFetch(`/menus/${id}`, {
-        method: "DELETE",
-      });
-
+      await deleteMenu(id);
       await Swal.fire({
         title: "Deleted!",
         text: "Menu has been deleted.",
         icon: "success",
         confirmButtonColor: "#51d28c",
       });
-
       await renderGrid();
       window.dispatchEvent(new Event("menu-changed"));
     } catch (err) {
@@ -208,17 +225,20 @@ export default function MenusPage() {
       icon: form.icon || null,
       order_index: Number(form.order_index),
       is_active: form.is_active,
-      permissions: form.permissions
-        ? form.permissions.split(",").map((p) => p.trim()).filter(Boolean)
-        : [],
     };
 
     try {
-      if (form.id) {
-        await apiFetch(`/menus/${form.id}`, { method: "PUT", body: payload });
+      let menuId = form.id;
+
+      if (menuId) {
+        await updateMenu(menuId, payload);
       } else {
-        await apiFetch("/menus", { method: "POST", body: payload });
+        const created = await createMenu(payload);
+        menuId = created.id ?? created.data?.id;
       }
+
+      await syncMenuPermissions(menuId, originalPermissions, form.permissions);
+
       setShowModal(false);
       await renderGrid();
       window.dispatchEvent(new Event("menu-changed"));
@@ -228,6 +248,10 @@ export default function MenusPage() {
       setSaving(false);
     }
   }
+
+  const availableParentOptions = flatMenusRef.current.filter(
+    ({ menu }) => !excludedParentIds.includes(menu.id)
+  );
 
   return (
     <div className="container-fluid">
@@ -264,6 +288,8 @@ export default function MenusPage() {
           onClose={() => setShowModal(false)}
           saving={saving}
           error={error}
+          parentOptions={availableParentOptions}
+          permissionOptions={permissionOptions}
         />
       )}
     </div>
