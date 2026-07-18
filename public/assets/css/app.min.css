@@ -816,7 +816,7 @@ body[data-layout=horizontal] .footer {
   background: 0 0;
   border: 2px solid;
   position: absolute;
-  left: -7px;
+  left: 2px;
   border-color: transparent transparent var(--bs-sidebar-menu-sub-item-line-color) transparent;
   top: 14px;
   -webkit-transition: all .4s ease-in-out;

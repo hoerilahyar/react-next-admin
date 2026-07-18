@@ -17,7 +17,7 @@ function MenuItem({ item }) {
 
     if (!hasChildren) {
         return (
-            <li>
+            <li className={isActive ? "mm-active" : ""}>
                 <Link href={item.path || "#"} className={isActive ? "active" : ""}>
                     <i className={`bx ${item.icon} icon nav-icon`}></i>
                     <span>{item.name}</span>
