@@ -5,21 +5,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMenu } from "@/lib/hooks/useMenu";
 
-// Asumsi shape tiap item: { id, name, icon, url, order, children: [] }
 function MenuItem({ item }) {
     const pathname = usePathname();
     const hasChildren = Array.isArray(item.children) && item.children.length > 0;
-    const isActive = item.url && pathname === item.url;
+    const isActive = item.path && pathname === item.path;
 
     const [open, setOpen] = useState(
         hasChildren &&
-        item.children.some((c) => c.url && pathname?.startsWith(c.url))
+        item.children.some((c) => c.path && pathname?.startsWith(c.path))
     );
 
     if (!hasChildren) {
         return (
             <li>
-                <Link href={item.url || "#"} className={isActive ? "active" : ""}>
+                <Link href={item.path || "#"} className={isActive ? "active" : ""}>
                     {item.icon && <i className={item.icon}></i>}
                     <span>{item.name}</span>
                 </Link>

@@ -15,7 +15,7 @@ export default function ProtectedRoute({ children }) {
   }, [isLoading, user, router]);
 
   if (isLoading) {
-    return <div className="page-loading">Memuat...</div>;
+    return <div className="page-loading" suppressHydrationWarning >Memuat...</div>;
   }
 
   if (!user) {

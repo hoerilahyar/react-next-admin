@@ -1,5 +1,9 @@
 @import url(https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Montserrat:wght@400;500;600&display=swap);
 
+html {
+  font-size: 12px;
+}
+
 .mt-n5 {
   margin-top: -3rem !important
 }
@@ -5030,7 +5034,7 @@ th.gridjs-th-sort:hover {
   height: 32px;
   padding: 0;
   text-align: center;
-  line-height: 32px
+  line-height: normal !important;
 }
 
 .gridjs-pagination .gridjs-pages button:disabled,
@@ -5056,7 +5060,7 @@ th.gridjs-th-sort:hover {
 }
 
 .gridjs-pagination .gridjs-pages button.gridjs-currentPage {
-  background-color: #1f58c7;
+  background-color: #1f58c7 !important;
   color: #fff;
   font-weight: 500;
   border-color: #1f58c7

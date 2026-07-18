@@ -8,6 +8,10 @@ File: Main Css File
 */
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Montserrat:wght@400;500;600&display=swap");
 
+html {
+  font-size: 9px;
+}
+
 .mt-n5 {
   margin-top: -3rem !important;
 }
