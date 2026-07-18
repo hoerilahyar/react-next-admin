@@ -1,29 +1,76 @@
 "use client";
 
-import { useAuth } from "@/lib/auth-context";
+import OverviewChart from "@/components/dashboard/OverviewChart";
+import StatCard from "@/components/dashboard/StatCard";
+import PopularProducts from "@/components/dashboard/PopularProducts";
+import LoyalCustomers from "@/components/dashboard/LoyalCustomers";
+import TopSellingCategories from "@/components/dashboard/TopSellingCategories";
+import SalesRevenueMap from "@/components/dashboard/SalesRevenueMap";
+import InvoiceList from "@/components/dashboard/InvoiceList";
 
 export default function DashboardPage() {
-  const { user } = useAuth();
-
   return (
-    <div>
-      {/* Ganti section ini dengan widget/kartu statistik dari template ThemeForest */}
-      <h2>Selamat datang, {user?.name} 👋</h2>
-      <p>Ini adalah halaman overview dashboard. Ganti konten ini dengan komponen dari template Anda.</p>
+    <div className="container-fluid">
+      <div className="row">
+        <OverviewChart />
 
-      <div className="stat-grid">
-        <div className="stat-card">
-          <span className="stat-label">Total Users</span>
-          <span className="stat-value">1,204</span>
+        <div className="col-xl-6">
+          <div className="row">
+            <StatCard
+              icon="bx bx-check-shield"
+              title="Total Sales"
+              value="$34,123.20"
+              change="8.34%"
+              trend="up"
+              subtitle="Total Sales World Wide"
+              data={[12, 14, 2, 47, 42, 15, 47, 75, 65, 19, 14]}
+            />
+            <StatCard
+              icon="bx bx-cart-alt"
+              title="Total Orders"
+              value="63,234.20"
+              change="3.68%"
+              trend="down"
+              subtitle="Total Orders World Wide"
+              data={[65, 14, 2, 47, 42, 15, 47, 75, 65, 19, 14]}
+            />
+          </div>
+          <div className="row">
+            <StatCard
+              icon="bx bx-package"
+              title="Today Visitor"
+              value="425,34.45"
+              change="2.64%"
+              trend="down"
+              subtitle="Total Visitor World Wide"
+              data={[12, 75, 2, 47, 42, 15, 47, 75, 65, 19, 14]}
+            />
+            <StatCard
+              icon="bx bx-rocket"
+              title="Total Expense"
+              value="6,482.46"
+              change="5.79%"
+              trend="up"
+              subtitle="Total Expense World Wide"
+              data={[12, 14, 2, 47, 42, 15, 47, 75, 65, 19, 70]}
+            />
+          </div>
         </div>
-        <div className="stat-card">
-          <span className="stat-label">Revenue</span>
-          <span className="stat-value">Rp 45.000.000</span>
+      </div>
+
+      <div className="row">
+        <div className="col-xxl-8">
+          <div className="row">
+            <PopularProducts />
+            <LoyalCustomers />
+          </div>
         </div>
-        <div className="stat-card">
-          <span className="stat-label">Orders</span>
-          <span className="stat-value">318</span>
-        </div>
+        <TopSellingCategories />
+      </div>
+
+      <div className="row">
+        <SalesRevenueMap />
+        <InvoiceList />
       </div>
     </div>
   );

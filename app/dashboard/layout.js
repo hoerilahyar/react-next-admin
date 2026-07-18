@@ -1,15 +1,17 @@
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Sidebar from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 
 export default function DashboardLayout({ children }) {
   return (
     <ProtectedRoute>
-      <div className="dashboard-layout">
+      <div id="layout-wrapper">
+        <Navbar />
         <Sidebar />
-        <div className="dashboard-content">
-          <Navbar />
-          <main className="dashboard-main">{children}</main>
+        <div className="main-content">
+          <div className="page-content">{children}</div>
+          <Footer />
         </div>
       </div>
     </ProtectedRoute>

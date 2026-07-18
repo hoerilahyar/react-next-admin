@@ -1,26 +1,89 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useMenu } from "@/lib/hooks/useMenu";
 
-const menuItems = [
-  { label: "Overview", href: "/dashboard" },
-  { label: "Analytics", href: "/dashboard/analytics" },
-  { label: "Settings", href: "/dashboard/settings" },
-];
+// Asumsi shape tiap item: { id, name, icon, url, order, children: [] }
+function MenuItem({ item }) {
+    const pathname = usePathname();
+    const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+    const isActive = item.url && pathname === item.url;
+
+    const [open, setOpen] = useState(
+        hasChildren &&
+        item.children.some((c) => c.url && pathname?.startsWith(c.url))
+    );
+
+    if (!hasChildren) {
+        return (
+            <li>
+                <Link href={item.url || "#"} className={isActive ? "active" : ""}>
+                    {item.icon && <i className={item.icon}></i>}
+                    <span>{item.name}</span>
+                </Link>
+            </li>
+        );
+    }
+
+    const handleToggle = (e) => {
+        e.preventDefault();
+        setOpen((prev) => !prev);
+    };
+
+    return (
+        <li className={open ? "mm-active" : ""}>
+            <a href="#" className="has-arrow" onClick={handleToggle}>
+                {item.icon && <i className={item.icon}></i>}
+                <span>{item.name}</span>
+            </a>
+            <ul className={`sub-menu ${open ? "mm-show" : "mm-collapse"}`}>
+                {[...item.children]
+                    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                    .map((child) => (
+                        <MenuItem key={child.id} item={child} />
+                    ))}
+            </ul>
+        </li>
+    );
+}
 
 export default function Sidebar() {
-  return (
-    // Ganti dengan komponen sidebar dari template ThemeForest.
-    // Cukup arahkan link menu ke route yang sesuai di app/dashboard/...
-    <aside className="sidebar">
-      <div className="sidebar-logo">MyApp</div>
-      <nav className="sidebar-nav">
-        {menuItems.map((item) => (
-          <Link key={item.href} href={item.href} className="sidebar-link">
-            {item.label}
-          </Link>
-        ))}
-      </nav>
-    </aside>
-  );
+    const { menu, loading, error, refetch } = useMenu();
+
+    return (
+        <div className="vertical-menu">
+            <div data-simplebar className="h-100">
+                <div id="sidebar-menu">
+                    <ul className="metismenu list-unstyled" id="side-menu">
+                        <li className="menu-title">Menu</li>
+
+                        {loading && (
+                            <li className="px-3 py-2 text-muted small">Memuat menu...</li>
+                        )}
+
+                        {error && (
+                            <li className="px-3 py-2">
+                                <span className="text-danger small d-block mb-1">{error}</span>
+                                <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-secondary"
+                                    onClick={refetch}
+                                >
+                                    Coba lagi
+                                </button>
+                            </li>
+                        )}
+
+                        {!loading &&
+                            !error &&
+                            [...menu]
+                                .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                                .map((item) => <MenuItem key={item.id} item={item} />)}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    );
 }

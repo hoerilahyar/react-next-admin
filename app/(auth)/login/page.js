@@ -41,11 +41,11 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
-            <label htmlFor="identifier">Email</label>
+            <label htmlFor="identifier">Email / Username</label>
             <input
               id="identifier"
               name="identifier"
-              type="identifier"
+              type="text"
               value={form.identifier}
               onChange={handleChange}
               placeholder="nama@email.com"
