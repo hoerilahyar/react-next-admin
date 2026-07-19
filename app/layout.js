@@ -17,7 +17,7 @@ export default function RootLayout({ children }) {
         <link href="/assets/css/icons.min.css" rel="stylesheet" type="text/css" />
         <link href="/assets/css/app.min.css" id="app-style" rel="stylesheet" type="text/css" />
         <link href="/assets/libs/gridjs/theme/mermaid.min.css" rel="stylesheet" type="text/css" />
-        <link href="assets/libs/sweetalert2/sweetalert2.min.css" rel="stylesheet" type="text/css" />
+        <link href="/assets/libs/sweetalert2/sweetalert2.min.css" rel="stylesheet" type="text/css" />
       </head>
       <body suppressHydrationWarning>
         <AuthProvider>{children}</AuthProvider>
@@ -46,7 +46,7 @@ export default function RootLayout({ children }) {
         <Script src="/assets/libs/jsvectormap/js/jsvectormap.min.js" strategy="afterInteractive" />
         <Script src="/assets/libs/jsvectormap/maps/world-merc.js" strategy="afterInteractive" />
         <Script src="/assets/libs/gridjs/gridjs.umd.js" strategy="afterInteractive" />
-        <script src="assets/libs/sweetalert2/sweetalert2.min.js" strategy="afterInteractive"></script>
+        <script src="/assets/libs/sweetalert2/sweetalert2.min.js" strategy="afterInteractive"></script>
       </body>
     </html>
   );

@@ -2,83 +2,62 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { waitForGlobal } from "@/lib/chart-utils";
-import { getUsers, getUserProfile, createUser, updateUser, deleteUser } from "@/lib/users";
-import UserFormModal, { emptyUserForm } from "@/components/users/UserFormModal";
-import UserViewModal from "@/components/users/UserViewModal";
+import { getPermissions, createPermission, updatePermission, deletePermission } from "@/lib/permissions";
+import PermissionFormModal, { emptyPermissionForm } from "@/components/permissions/PermissionFormModal";
 import { formatDateTime } from "@/lib/helper/format-utils";
 
 const columns = [
   { name: "name", width: "150px" },
-  { name: "username", width: "150px" },
-  { name: "email", width: "150px" },
-  { name: "is_active", width: "95px" },
-  { name: "last_login_at", width: "180px" },
+  { name: "description", width: "150px" },
   { name: "created_at", width: "180px" },
-  { name: "Actions", width: "100px" },
+  { name: "Actions", width: "130px" },
 ];
 
-function formatRow(user) {
+function formatRow(permission) {
   return [
-    user.name,
-    user.username,
-    user.email,
-    user.is_active ? "Active" : "Inactive",
-    formatDateTime(user.last_login_at),
-    formatDateTime(user.created_at),
+    permission.name,
+    permission.description,
+    formatDateTime(permission.created_at),
   ];
 }
 
-export default function UserPage() {
+export default function PermissionPage() {
   const gridRef = useRef(null);
   const gridInstance = useRef(null);
   const gridjsRef = useRef(null);
-  const usersRef = useRef([]);
+  const permissionsRef = useRef([]);
 
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [viewLoading, setViewLoading] = useState(false);
-  const [viewError, setViewError] = useState(null);
-  const [form, setForm] = useState(emptyUserForm);
+  const [form, setForm] = useState(emptyPermissionForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
   const loadGridData = useCallback(async () => {
-    const users = await getUsers();
-    usersRef.current = users;
+    const permissions = await getPermissions();
+    permissionsRef.current = permissions;
 
-    return users.map((user) => [
-      ...formatRow(user),
+    return permissions.map((permission) => [
+      ...formatRow(permission),
       gridjsRef.current.html(
         `<div style="white-space: nowrap;">
-            <a
+              <a
                 href="javascript:void(0);"
-                class="js-view-user px-2 text-primary"
+                class="js-edit-permission px-2 text-primary"
                 data-bs-toggle="tooltip"
                 data-bs-placement="top"
                 aria-label="Edit"
                 data-bs-original-title="Edit"
-                data-id="${user.id}">
-                <i class="bx bxs-user-detail font-size-18"></i>
-            </a>
-            <a
-                href="javascript:void(0);"
-                class="js-edit-user px-2 text-primary"
-                data-bs-toggle="tooltip"
-                data-bs-placement="top"
-                aria-label="Edit"
-                data-bs-original-title="Edit"
-                data-id="${user.id}">
+                data-id="${permission.id}">
                 <i class="bx bx-pencil font-size-18"></i>
             </a>
-            <a
+              <a
                 href="javascript:void(0);"
-                class="js-delete-user px-2 text-danger"
+                class="js-delete-permission px-2 text-danger"
                 data-bs-toggle="tooltip"
                 data-bs-placement="top"
                 aria-label="Delete"
                 data-bs-original-title="Delete"
-                data-id="${user.id}">
+                data-id="${permission.id}">
                 <i class="bx bx-trash-alt font-size-18"></i>
             </a>
         </div>`
@@ -116,11 +95,11 @@ export default function UserPage() {
 
     const container = gridRef.current;
     const handleClick = (e) => {
-      const viewBtn = e.target.closest(".js-view-user");
-      const editBtn = e.target.closest(".js-edit-user");
-      const deleteBtn = e.target.closest(".js-delete-user");
+      const permissionBtn = e.target.closest(".js-manage-permissions");
+      const editBtn = e.target.closest(".js-edit-permission");
+      const deleteBtn = e.target.closest(".js-delete-permission");
 
-      if (viewBtn) openViewModal(Number(viewBtn.dataset.id));
+      if (permissionBtn) openPermissionModal(Number(permissionBtn.dataset.id));
       if (editBtn) openEditModal(Number(editBtn.dataset.id));
       if (deleteBtn) handleDelete(Number(deleteBtn.dataset.id));
     };
@@ -133,44 +112,30 @@ export default function UserPage() {
   }, [renderGrid]);
 
   function openAddModal() {
-    setForm(emptyUserForm);
+    setForm(emptyPermissionForm);
     setError(null);
     setShowModal(true);
   }
 
-  async function openViewModal(id) {
-    const basic = usersRef.current.find((user) => user.id === id);
-    if (!basic) return;
-
-    setShowViewModal(true);
-    setSelectedUser({ ...basic, profile: null });
-    setViewError(null);
-    setViewLoading(true);
-
-    try {
-      const profile = await getUserProfile(id);
-      setSelectedUser({ ...basic, profile });
-    } catch (err) {
-      setViewError(err.message || "Gagal memuat detail user.");
-    } finally {
-      setViewLoading(false);
-    }
-  }
-
   function openEditModal(id) {
-    const found = usersRef.current.find((user) => user.id === id);
+    const found = permissionsRef.current.find((permission) => permission.id === id);
     if (!found) return;
 
     setForm({
       id: found.id,
       name: found.name,
-      username: found.username,
-      email: found.email,
-      password: "",
-      is_active: found.is_active,
+      description: found.description,
     });
     setError(null);
     setShowModal(true);
+  }
+
+  function openPermissionModal(id) {
+    const found = permissionsRef.current.find((permission) => permission.id === id);
+    if (!found) return;
+
+    setSelectedPermission(found);
+    setShowPermissionModal(true);
   }
 
   async function showDeleteConfirmation() {
@@ -193,19 +158,19 @@ export default function UserPage() {
     if (!confirmed) return;
 
     try {
-      await deleteUser(id);
+      await deletePermission(id);
       await Swal.fire({
         title: "Deleted!",
-        text: "User has been deleted.",
+        text: "Permission has been deleted.",
         icon: "success",
         confirmButtonColor: "#51d28c",
       });
       await renderGrid();
-      window.dispatchEvent(new Event("user-changed"));
+      window.dispatchEvent(new Event("permission-changed"));
     } catch (err) {
       await Swal.fire({
         title: "Error!",
-        text: err.message || "Failed to delete user.",
+        text: err.message || "Failed to delete permission.",
         icon: "error",
         confirmButtonColor: "#f34e4e",
       });
@@ -219,28 +184,24 @@ export default function UserPage() {
 
     const payload = {
       name: form.name,
-      username: form.username,
-      email: form.email,
-      is_active: form.is_active,
+      description: form.description,
     };
 
-    // hanya kirim password kalau diisi (create wajib, edit opsional)
-    if (form.password) {
-      payload.password = form.password;
-    }
-
     try {
+      let permissionId = form.id;
+
       if (form.id) {
-        await updateUser(form.id, payload);
+        await updatePermission(form.id, payload);
       } else {
-        await createUser(payload);
+        const created = await createPermission(payload);
+        permissionId = created.id ?? created.data?.id;
       }
 
       setShowModal(false);
       await renderGrid();
-      window.dispatchEvent(new Event("user-changed"));
+      window.dispatchEvent(new Event("permission-changed"));
     } catch (err) {
-      setError(err.message || "Gagal menyimpan user");
+      setError(err.message || "Gagal menyimpan permission");
     } finally {
       setSaving(false);
     }
@@ -251,7 +212,7 @@ export default function UserPage() {
       <div className="row align-items-center">
         <div className="col-md-6">
           <div className="mb-3">
-            <h5 className="card-title">User List</h5>
+            <h5 className="card-title">Permission List</h5>
           </div>
         </div>
 
@@ -276,21 +237,13 @@ export default function UserPage() {
       </div>
 
       {showModal && (
-        <UserFormModal
+        <PermissionFormModal
           form={form}
           setForm={setForm}
           onSubmit={handleSubmit}
           onClose={() => setShowModal(false)}
           saving={saving}
           error={error}
-        />
-      )}
-      {showViewModal && (
-        <UserViewModal
-          user={selectedUser}
-          loading={viewLoading}
-          error={viewError}
-          onClose={() => setShowViewModal(false)}
         />
       )}
     </div>

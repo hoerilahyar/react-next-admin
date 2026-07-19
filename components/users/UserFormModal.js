@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { getRoles } from "@/lib/roles";
+
 export const emptyUserForm = {
   id: null,
   name: "",
@@ -7,6 +10,7 @@ export const emptyUserForm = {
   email: "",
   password: "",
   is_active: true,
+  roles: [],
 };
 
 export default function UserFormModal({
@@ -17,6 +21,44 @@ export default function UserFormModal({
   saving,
   error,
 }) {
+  const [roleOptions, setRoleOptions] = useState([]);
+  const [loadingRoles, setLoadingRoles] = useState(true);
+  const [rolesError, setRolesError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoadingRoles(true);
+      setRolesError(null);
+      try {
+        const roles = await getRoles();
+        if (!cancelled) setRoleOptions(roles);
+      } catch (err) {
+        if (!cancelled) setRolesError(err.message || "Gagal memuat roles.");
+      } finally {
+        if (!cancelled) setLoadingRoles(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function toggleRole(name) {
+    setForm((prev) => {
+      const has = prev.roles.includes(name);
+      return {
+        ...prev,
+        roles: has
+          ? prev.roles.filter((r) => r !== name)
+          : [...prev.roles, name],
+      };
+    });
+  }
+
   return (
     <>
       <div className="modal show d-block" tabIndex={-1} role="dialog">
@@ -72,6 +114,46 @@ export default function UserFormModal({
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
                   />
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label">Roles</label>
+
+                  {rolesError && (
+                    <div className="alert alert-danger py-2">{rolesError}</div>
+                  )}
+
+                  <div
+                    className="border rounded p-2"
+                    style={{ maxHeight: "180px", overflowY: "auto" }}
+                  >
+                    {loadingRoles && (
+                      <div className="text-muted small">Loading roles...</div>
+                    )}
+
+                    {!loadingRoles && roleOptions.length === 0 && (
+                      <div className="text-muted small">No roles available</div>
+                    )}
+
+                    {!loadingRoles &&
+                      roleOptions.map((role) => (
+                        <div className="form-check" key={role.id}>
+                          <input
+                            type="checkbox"
+                            className="form-check-input"
+                            id={`role-${role.id}`}
+                            checked={form.roles.includes(role.name)}
+                            onChange={() => toggleRole(role.name)}
+                          />
+                          <label className="form-check-label" htmlFor={`role-${role.id}`}>
+                            {role.name}
+                            {role.description && (
+                              <span className="text-muted"> — {role.description}</span>
+                            )}
+                          </label>
+                        </div>
+                      ))}
+                  </div>
                 </div>
 
                 <div className="form-check form-switch">
