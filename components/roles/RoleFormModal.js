@@ -1,8 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getPermissions } from "@/lib/permissions";
-
 export const emptyRoleForm = {
   id: null,
   name: "",
@@ -17,41 +14,16 @@ export default function RoleFormModal({
   onClose,
   saving,
   error,
+  permissionOptions = [],
 }) {
-  const [permissionOptions, setPermissionOptions] = useState([]);
-  const [loadingPermissions, setLoadingPermissions] = useState(true);
-  const [permissionsError, setPermissionsError] = useState(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      setLoadingPermissions(true);
-      setPermissionsError(null);
-      try {
-        const permissions = await getPermissions();
-        if (!cancelled) setPermissionOptions(permissions);
-      } catch (err) {
-        if (!cancelled) setPermissionsError(err.message || "Gagal memuat permissions.");
-      } finally {
-        if (!cancelled) setLoadingPermissions(false);
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  function togglePermission(name) {
+  function togglePermission(id) {
     setForm((prev) => {
-      const has = prev.permissions.includes(name);
+      const has = prev.permissions.includes(id);
       return {
         ...prev,
         permissions: has
-          ? prev.permissions.filter((p) => p !== name)
-          : [...prev.permissions, name],
+          ? prev.permissions.filter((p) => p !== id)
+          : [...prev.permissions, id],
       };
     });
   }
@@ -92,40 +64,31 @@ export default function RoleFormModal({
                 <div className="mb-3">
                   <label className="form-label">Permissions</label>
 
-                  {permissionsError && (
-                    <div className="alert alert-danger py-2">{permissionsError}</div>
-                  )}
-
                   <div
                     className="border rounded p-2"
                     style={{ maxHeight: "180px", overflowY: "auto" }}
                   >
-                    {loadingPermissions && (
-                      <div className="text-muted small">Loading permissions...</div>
-                    )}
-
-                    {!loadingPermissions && permissionOptions.length === 0 && (
+                    {permissionOptions.length === 0 && (
                       <div className="text-muted small">No permissions available</div>
                     )}
 
-                    {!loadingPermissions &&
-                      permissionOptions.map((perm) => (
-                        <div className="form-check" key={perm.id}>
-                          <input
-                            type="checkbox"
-                            className="form-check-input"
-                            id={`perm-${perm.id}`}
-                            checked={form.permissions.includes(perm.name)}
-                            onChange={() => togglePermission(perm.name)}
-                          />
-                          <label className="form-check-label" htmlFor={`perm-${perm.id}`}>
-                            {perm.name}
-                            {perm.description && (
-                              <span className="text-muted"> — {perm.description}</span>
-                            )}
-                          </label>
-                        </div>
-                      ))}
+                    {permissionOptions.map((perm) => (
+                      <div className="form-check" key={perm.id}>
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          id={`perm-${perm.id}`}
+                          checked={form.permissions.includes(perm.id)}
+                          onChange={() => togglePermission(perm.id)}
+                        />
+                        <label className="form-check-label" htmlFor={`perm-${perm.id}`}>
+                          {perm.name}
+                          {perm.description && (
+                            <span className="text-muted"> — {perm.description}</span>
+                          )}
+                        </label>
+                      </div>
+                    ))}
                   </div>
                 </div>
 

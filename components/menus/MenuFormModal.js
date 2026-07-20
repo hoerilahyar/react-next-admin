@@ -9,7 +9,7 @@ export const emptyMenuForm = {
   icon: "",
   order_index: "",
   is_active: true,
-  permissions: [], // now an array of permission names, not a comma string
+  permissions: [],
 };
 
 function buildParentLabel(menu, depth) {
@@ -27,14 +27,14 @@ export default function MenuFormModal({
   parentOptions = [],
   permissionOptions = [],
 }) {
-  function togglePermission(name) {
+  function togglePermission(id) {
     setForm((prev) => {
-      const has = prev.permissions.includes(name);
+      const has = prev.permissions.includes(id);
       return {
         ...prev,
         permissions: has
-          ? prev.permissions.filter((p) => p !== name)
-          : [...prev.permissions, name],
+          ? prev.permissions.filter((p) => p !== id)
+          : [...prev.permissions, id],
       };
     });
   }
@@ -132,8 +132,8 @@ export default function MenuFormModal({
                           type="checkbox"
                           className="form-check-input"
                           id={`perm-${perm.id}`}
-                          checked={form.permissions.includes(perm.name)}
-                          onChange={() => togglePermission(perm.name)}
+                          checked={form.permissions.includes(perm.id)}
+                          onChange={() => togglePermission(perm.id)}
                         />
                         <label className="form-check-label" htmlFor={`perm-${perm.id}`}>
                           {perm.name}

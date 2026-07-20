@@ -156,6 +156,10 @@ export default function MenusPage() {
     const found = flatMenusRef.current.find(({ menu }) => menu.id === id)?.menu;
     if (!found) return;
 
+    const currentPermissionIds = (found.permissions ?? [])
+      .map((name) => permissionOptions.find((perm) => perm.name === name)?.id)
+      .filter((permId) => permId !== undefined);
+
     setForm({
       id: found.id,
       parent_id: found.parent_id,
@@ -165,10 +169,9 @@ export default function MenusPage() {
       icon: found.icon ?? "",
       order_index: found.order_index,
       is_active: found.is_active,
-      permissions: found.permissions ?? [],
+      permissions: currentPermissionIds,
     });
     setExcludedParentIds(collectSubtreeIds(found));
-    setOriginalPermissions(found.permissions ?? []);
     setError(null);
     setShowModal(true);
   }
@@ -237,13 +240,13 @@ export default function MenusPage() {
         menuId = created.id ?? created.data?.id;
       }
 
-      await syncMenuPermissions(menuId, originalPermissions, form.permissions);
+      await syncMenuPermissions(menuId, form.permissions);
 
       setShowModal(false);
       await renderGrid();
       window.dispatchEvent(new Event("menu-changed"));
     } catch (err) {
-      setError(err.message || "Gagal menyimpan menu");
+      setError(err.message || "Failed to save menu");
     } finally {
       setSaving(false);
     }

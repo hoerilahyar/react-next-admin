@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 
 export default function MenusLayout({ children }) {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="menu.manage">
       <div id="layout-wrapper">
         <Navbar />
         <Sidebar />

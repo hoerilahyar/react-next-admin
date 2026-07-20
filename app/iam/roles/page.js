@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { waitForGlobal } from "@/lib/chart-utils";
-import { getRoles, createRole, updateRole, deleteRole, assignPermission, revokePermission } from "@/lib/roles";
+import { getRoles, createRole, updateRole, deleteRole, syncRolePermissions } from "@/lib/roles";
+import { getPermissions } from "@/lib/permissions";
 import RoleFormModal, { emptyRoleForm } from "@/components/roles/RoleFormModal";
 import { formatDateTime } from "@/lib/helper/format-utils";
 
@@ -33,7 +34,23 @@ export default function RolePage() {
   const [form, setForm] = useState(emptyRoleForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [originalPermissions, setOriginalPermissions] = useState([]);
+
+  const [permissionOptions, setPermissionOptions] = useState([]);
+  // Kept in sync with permissionOptions, but read from inside openEditModal
+  // instead of the state directly: the click listener below is attached
+  // once on mount, so its closure would otherwise keep seeing the stale
+  // (empty) permissionOptions from that first render forever. A ref's
+  // .current is always read fresh, so it doesn't have that problem.
+  const permissionOptionsRef = useRef([]);
+
+  useEffect(() => {
+    getPermissions()
+      .then((perms) => {
+        setPermissionOptions(perms);
+        permissionOptionsRef.current = perms;
+      })
+      .catch(() => setPermissionOptions([]));
+  }, []);
 
   const loadGridData = useCallback(async () => {
     const roles = await getRoles();
@@ -43,7 +60,7 @@ export default function RolePage() {
       ...formatRow(role),
       gridjsRef.current.html(
         `<div style="white-space: nowrap;">
-              <a
+            <a
                 href="javascript:void(0);"
                 class="js-edit-role px-2 text-primary"
                 data-bs-toggle="tooltip"
@@ -53,7 +70,7 @@ export default function RolePage() {
                 data-id="${role.id}">
                 <i class="bx bx-pencil font-size-18"></i>
             </a>
-              <a
+            <a
                 href="javascript:void(0);"
                 class="js-delete-role px-2 text-danger"
                 data-bs-toggle="tooltip"
@@ -98,11 +115,9 @@ export default function RolePage() {
 
     const container = gridRef.current;
     const handleClick = (e) => {
-      const permissionBtn = e.target.closest(".js-manage-permissions");
       const editBtn = e.target.closest(".js-edit-role");
       const deleteBtn = e.target.closest(".js-delete-role");
 
-      if (permissionBtn) openPermissionModal(Number(permissionBtn.dataset.id));
       if (editBtn) openEditModal(Number(editBtn.dataset.id));
       if (deleteBtn) handleDelete(Number(deleteBtn.dataset.id));
     };
@@ -116,7 +131,6 @@ export default function RolePage() {
 
   function openAddModal() {
     setForm(emptyRoleForm);
-    setOriginalPermissions([]);
     setError(null);
     setShowModal(true);
   }
@@ -125,25 +139,18 @@ export default function RolePage() {
     const found = rolesRef.current.find((role) => role.id === id);
     if (!found) return;
 
-    const currentPermissions = (found.permissions ?? []).map((p) => p.name ?? p);
+    const currentPermissionIds = (found.permissions ?? [])
+      .map((name) => permissionOptionsRef.current.find((perm) => perm.name === name)?.id)
+      .filter((permId) => permId !== undefined);
 
     setForm({
       id: found.id,
       name: found.name,
       description: found.description,
-      permissions: currentPermissions,
+      permissions: currentPermissionIds,
     });
-    setOriginalPermissions(currentPermissions);
     setError(null);
     setShowModal(true);
-  }
-
-  function openPermissionModal(id) {
-    const found = rolesRef.current.find((role) => role.id === id);
-    if (!found) return;
-
-    setSelectedRole(found);
-    setShowPermissionModal(true);
   }
 
   async function showDeleteConfirmation() {
@@ -205,19 +212,13 @@ export default function RolePage() {
         roleId = created.id ?? created.data?.id;
       }
 
-      const toAssign = form.permissions.filter((p) => !originalPermissions.includes(p));
-      const toRevoke = originalPermissions.filter((p) => !form.permissions.includes(p));
-
-      await Promise.all([
-        ...toAssign.map((name) => assignPermission(roleId, name)),
-        ...toRevoke.map((name) => revokePermission(roleId, name)),
-      ]);
+      await syncRolePermissions(roleId, form.permissions);
 
       setShowModal(false);
       await renderGrid();
       window.dispatchEvent(new Event("role-changed"));
     } catch (err) {
-      setError(err.message || "Gagal menyimpan role");
+      setError(err.message || "Failed to save role");
     } finally {
       setSaving(false);
     }
@@ -260,6 +261,7 @@ export default function RolePage() {
           onClose={() => setShowModal(false)}
           saving={saving}
           error={error}
+          permissionOptions={permissionOptions}
         />
       )}
     </div>

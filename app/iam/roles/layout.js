@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 
 export default function UserLayout({ children }) {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute permission="role.manage">
       <div id="layout-wrapper">
         <Navbar />
         <Sidebar />
