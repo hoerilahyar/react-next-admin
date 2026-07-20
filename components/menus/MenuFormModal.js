@@ -9,7 +9,7 @@ export const emptyMenuForm = {
   icon: "",
   order_index: "",
   is_active: true,
-  permissions: [],
+  permissions: [], // array of permission ids
 };
 
 function buildParentLabel(menu, depth) {

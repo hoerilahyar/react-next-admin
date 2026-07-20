@@ -56,12 +56,19 @@ export default function MenusPage() {
   const [error, setError] = useState(null);
 
   const [permissionOptions, setPermissionOptions] = useState([]);
+  // Same fix as RolePage: the click listener below is attached once on
+  // mount, so reading permissionOptions (state) inside openEditModal would
+  // always see the stale, empty value from that first render. This ref
+  // stays in sync and is read fresh every call.
+  const permissionOptionsRef = useRef([]);
   const [excludedParentIds, setExcludedParentIds] = useState([]);
-  const [originalPermissions, setOriginalPermissions] = useState([]);
 
   useEffect(() => {
     getPermissions()
-      .then(setPermissionOptions)
+      .then((perms) => {
+        setPermissionOptions(perms);
+        permissionOptionsRef.current = perms;
+      })
       .catch(() => setPermissionOptions([]));
   }, []);
 
@@ -147,7 +154,6 @@ export default function MenusPage() {
   function openAddModal() {
     setForm(emptyMenuForm);
     setExcludedParentIds([]);
-    setOriginalPermissions([]);
     setError(null);
     setShowModal(true);
   }
@@ -157,7 +163,7 @@ export default function MenusPage() {
     if (!found) return;
 
     const currentPermissionIds = (found.permissions ?? [])
-      .map((name) => permissionOptions.find((perm) => perm.name === name)?.id)
+      .map((name) => permissionOptionsRef.current.find((perm) => perm.name === name)?.id)
       .filter((permId) => permId !== undefined);
 
     setForm({
@@ -246,7 +252,7 @@ export default function MenusPage() {
       await renderGrid();
       window.dispatchEvent(new Event("menu-changed"));
     } catch (err) {
-      setError(err.message || "Failed to save menu");
+      setError(err.message || "Gagal menyimpan menu");
     } finally {
       setSaving(false);
     }
