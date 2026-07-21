@@ -11,6 +11,7 @@ import {
   assignRole,
   revokeRole,
 } from "@/lib/users";
+import { getRoles } from "@/lib/roles";
 import UserFormModal, { emptyUserForm } from "@/components/users/UserFormModal";
 import UserViewModal from "@/components/users/UserViewModal";
 import { formatDateTime } from "@/lib/helper/format-utils";
@@ -54,64 +55,99 @@ export default function UserPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  const loadGridData = useCallback(async () => {
-    const users = await getUsers();
-    usersRef.current = users;
-
-    return users.map((user) => [
-      ...formatRow(user),
-      gridjsRef.current.html(
-        `<div style="white-space: nowrap;">
-            <a
-                href="javascript:void(0);"
-                class="js-view-user px-2 text-primary"
-                data-bs-toggle="tooltip"
-                data-bs-placement="top"
-                aria-label="Edit"
-                data-bs-original-title="Edit"
-                data-id="${user.id}">
-                <i class="bx bxs-user-detail font-size-18"></i>
-            </a>
-            <a
-                href="javascript:void(0);"
-                class="js-edit-user px-2 text-primary"
-                data-bs-toggle="tooltip"
-                data-bs-placement="top"
-                aria-label="Edit"
-                data-bs-original-title="Edit"
-                data-id="${user.id}">
-                <i class="bx bx-pencil font-size-18"></i>
-            </a>
-            <a
-                href="javascript:void(0);"
-                class="js-delete-user px-2 text-danger"
-                data-bs-toggle="tooltip"
-                data-bs-placement="top"
-                aria-label="Delete"
-                data-bs-original-title="Delete"
-                data-id="${user.id}">
-                <i class="bx bx-trash-alt font-size-18"></i>
-            </a>
-        </div>`
-      ),
-    ]);
-  }, []);
+  // Role options for the checkbox list, fetched once at page level
+  // (same pattern as permissionOptions in MenusPage) instead of
+  // re-fetching every time the modal opens.
+  const [roleOptions, setRoleOptions] = useState([]);
+  const [loadingRoles, setLoadingRoles] = useState(true);
+  const [rolesError, setRolesError] = useState(null);
+  const roleOptionsRef = useRef([]);
 
   const renderGrid = useCallback(async () => {
     const gridjs = await waitForGlobal("gridjs");
     gridjsRef.current = gridjs;
 
-    if (!gridInstance.current) {
-      gridInstance.current = new gridjs.Grid({
-        columns,
-        pagination: true,
-        sort: true,
-        search: true,
-        data: loadGridData,
-      }).render(gridRef.current);
-    } else {
-      gridInstance.current.updateConfig({ data: loadGridData }).forceRender();
-    }
+    if (gridInstance.current) return;
+
+    gridInstance.current = new gridjs.Grid({
+      columns: [...columns],
+      sort: false,
+      search: {
+        server: {
+          url: (prev, keyword) => {
+            const url = new URL(prev, window.location.origin);
+            if (keyword) url.searchParams.set("search", keyword);
+            else url.searchParams.delete("search");
+            return url.toString();
+          },
+        },
+      },
+      pagination: {
+        limit: 20,
+        server: {
+          url: (prev, page, limit) => {
+            const url = new URL(prev, window.location.origin);
+            url.searchParams.set("page", page + 1);
+            url.searchParams.set("limit", limit);
+            return url.toString();
+          },
+        },
+      },
+      server: {
+        url: "/users",
+        data: async (opts) => {
+          const relativeUrl = opts.url.replace(window.location.origin, "");
+          const query = relativeUrl.split("?")[1] ?? "";
+
+          const res = await getUsers(
+            Object.fromEntries(new URLSearchParams(query))
+          );
+
+          usersRef.current = res.data;
+
+          return {
+            data: res.data.map((user) => [
+              ...formatRow(user),
+              gridjsRef.current.html(
+                `<div style="white-space: nowrap;">
+                    <a
+                        href="javascript:void(0);"
+                        class="js-view-user px-2 text-primary"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        aria-label="View"
+                        data-bs-original-title="View"
+                        data-id="${user.id}">
+                        <i class="bx bxs-user-detail font-size-18"></i>
+                    </a>
+                    <a
+                        href="javascript:void(0);"
+                        class="js-edit-user px-2 text-primary"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        aria-label="Edit"
+                        data-bs-original-title="Edit"
+                        data-id="${user.id}">
+                        <i class="bx bx-pencil font-size-18"></i>
+                    </a>
+                    <a
+                        href="javascript:void(0);"
+                        class="js-delete-user px-2 text-danger"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        aria-label="Delete"
+                        data-bs-original-title="Delete"
+                        data-id="${user.id}">
+                        <i class="bx bx-trash-alt font-size-18"></i>
+                    </a>
+                </div>`
+              ),
+            ]),
+            total: res.meta.total,
+          };
+        },
+      },
+    }).render(gridRef.current);
 
     gridInstance.current.on("ready", () => {
       if (window.bootstrap) {
@@ -120,7 +156,11 @@ export default function UserPage() {
           .forEach((el) => new window.bootstrap.Tooltip(el));
       }
     });
-  }, [loadGridData]);
+  }, []);
+
+  const refreshGrid = useCallback(() => {
+    gridInstance.current?.forceRender();
+  }, []);
 
   useEffect(() => {
     renderGrid().catch(() => { });
@@ -140,8 +180,37 @@ export default function UserPage() {
     return () => {
       container?.removeEventListener("click", handleClick);
       gridInstance.current?.destroy?.();
+      gridInstance.current = null;
     };
   }, [renderGrid]);
+
+  // Fetch role options once when the page mounts.
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      setLoadingRoles(true);
+      setRolesError(null);
+      try {
+        const res = await getRoles();
+        // Defensive unwrap: API may return either a bare array or
+        // an envelope like { success, data, meta }.
+        const list = Array.isArray(res) ? res : (res?.data ?? []);
+        if (!cancelled) {
+          setRoleOptions(list);
+          roleOptionsRef.current = list;
+        }
+      } catch (err) {
+        if (!cancelled) setRolesError(err.message || "Gagal memuat roles.");
+      } finally {
+        if (!cancelled) setLoadingRoles(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function openAddModal() {
     setForm(emptyUserForm);
@@ -216,7 +285,7 @@ export default function UserPage() {
         icon: "success",
         confirmButtonColor: "#51d28c",
       });
-      await renderGrid();
+      refreshGrid();
       window.dispatchEvent(new Event("user-changed"));
     } catch (err) {
       await Swal.fire({
@@ -265,7 +334,7 @@ export default function UserPage() {
       }
 
       setShowModal(false);
-      await renderGrid();
+      refreshGrid();
       window.dispatchEvent(new Event("user-changed"));
     } catch (err) {
       setError(err.message || "Gagal menyimpan user");
@@ -311,6 +380,9 @@ export default function UserPage() {
           onClose={() => setShowModal(false)}
           saving={saving}
           error={error}
+          roleOptions={roleOptions}
+          loadingRoles={loadingRoles}
+          rolesError={rolesError}
         />
       )}
       {showViewModal && (

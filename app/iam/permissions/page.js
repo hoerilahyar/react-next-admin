@@ -32,54 +32,81 @@ export default function PermissionPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  const loadGridData = useCallback(async () => {
-    const permissions = await getPermissions();
-    permissionsRef.current = permissions;
-
-    return permissions.map((permission) => [
-      ...formatRow(permission),
-      gridjsRef.current.html(
-        `<div style="white-space: nowrap;">
-              <a
-                href="javascript:void(0);"
-                class="js-edit-permission px-2 text-primary"
-                data-bs-toggle="tooltip"
-                data-bs-placement="top"
-                aria-label="Edit"
-                data-bs-original-title="Edit"
-                data-id="${permission.id}">
-                <i class="bx bx-pencil font-size-18"></i>
-            </a>
-              <a
-                href="javascript:void(0);"
-                class="js-delete-permission px-2 text-danger"
-                data-bs-toggle="tooltip"
-                data-bs-placement="top"
-                aria-label="Delete"
-                data-bs-original-title="Delete"
-                data-id="${permission.id}">
-                <i class="bx bx-trash-alt font-size-18"></i>
-            </a>
-        </div>`
-      ),
-    ]);
-  }, []);
-
   const renderGrid = useCallback(async () => {
     const gridjs = await waitForGlobal("gridjs");
     gridjsRef.current = gridjs;
 
-    if (!gridInstance.current) {
-      gridInstance.current = new gridjs.Grid({
-        columns,
-        pagination: true,
-        sort: true,
-        search: true,
-        data: loadGridData,
-      }).render(gridRef.current);
-    } else {
-      gridInstance.current.updateConfig({ data: loadGridData }).forceRender();
-    }
+    if (gridInstance.current) return;
+
+    gridInstance.current = new gridjs.Grid({
+      columns: [...columns],
+      sort: false,
+      search: {
+        server: {
+          url: (prev, keyword) => {
+            const url = new URL(prev, window.location.origin);
+            if (keyword) url.searchParams.set("search", keyword);
+            else url.searchParams.delete("search");
+            return url.toString();
+          },
+        },
+      },
+      pagination: {
+        limit: 20,
+        server: {
+          url: (prev, page, limit) => {
+            const url = new URL(prev, window.location.origin);
+            url.searchParams.set("page", page + 1);
+            url.searchParams.set("limit", limit);
+            return url.toString();
+          },
+        },
+      },
+      server: {
+        url: "/permissions",
+        data: async (opts) => {
+          const relativeUrl = opts.url.replace(window.location.origin, "");
+          const query = relativeUrl.split("?")[1] ?? "";
+
+          const res = await getPermissions(
+            Object.fromEntries(new URLSearchParams(query))
+          );
+
+          permissionsRef.current = res.data;
+
+          return {
+            data: res.data.map((permission) => [
+              ...formatRow(permission),
+              gridjsRef.current.html(
+                `<div style="white-space: nowrap;">
+                    <a
+                        href="javascript:void(0);"
+                        class="js-edit-permission px-2 text-primary"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        aria-label="Edit"
+                        data-bs-original-title="Edit"
+                        data-id="${permission.id}">
+                        <i class="bx bx-pencil font-size-18"></i>
+                    </a>
+                    <a
+                        href="javascript:void(0);"
+                        class="js-delete-permission px-2 text-danger"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        aria-label="Delete"
+                        data-bs-original-title="Delete"
+                        data-id="${permission.id}">
+                        <i class="bx bx-trash-alt font-size-18"></i>
+                    </a>
+                </div>`
+              ),
+            ]),
+            total: res.meta.total,
+          };
+        },
+      },
+    }).render(gridRef.current);
 
     gridInstance.current.on("ready", () => {
       if (window.bootstrap) {
@@ -88,18 +115,20 @@ export default function PermissionPage() {
           .forEach((el) => new window.bootstrap.Tooltip(el));
       }
     });
-  }, [loadGridData]);
+  }, []);
+
+  const refreshGrid = useCallback(() => {
+    gridInstance.current?.forceRender();
+  }, []);
 
   useEffect(() => {
     renderGrid().catch(() => { });
 
     const container = gridRef.current;
     const handleClick = (e) => {
-      const permissionBtn = e.target.closest(".js-manage-permissions");
       const editBtn = e.target.closest(".js-edit-permission");
       const deleteBtn = e.target.closest(".js-delete-permission");
 
-      if (permissionBtn) openPermissionModal(Number(permissionBtn.dataset.id));
       if (editBtn) openEditModal(Number(editBtn.dataset.id));
       if (deleteBtn) handleDelete(Number(deleteBtn.dataset.id));
     };
@@ -108,6 +137,7 @@ export default function PermissionPage() {
     return () => {
       container?.removeEventListener("click", handleClick);
       gridInstance.current?.destroy?.();
+      gridInstance.current = null;
     };
   }, [renderGrid]);
 
@@ -128,14 +158,6 @@ export default function PermissionPage() {
     });
     setError(null);
     setShowModal(true);
-  }
-
-  function openPermissionModal(id) {
-    const found = permissionsRef.current.find((permission) => permission.id === id);
-    if (!found) return;
-
-    setSelectedPermission(found);
-    setShowPermissionModal(true);
   }
 
   async function showDeleteConfirmation() {
@@ -165,7 +187,7 @@ export default function PermissionPage() {
         icon: "success",
         confirmButtonColor: "#51d28c",
       });
-      await renderGrid();
+      refreshGrid();
       window.dispatchEvent(new Event("permission-changed"));
     } catch (err) {
       await Swal.fire({
@@ -188,17 +210,14 @@ export default function PermissionPage() {
     };
 
     try {
-      let permissionId = form.id;
-
       if (form.id) {
         await updatePermission(form.id, payload);
       } else {
-        const created = await createPermission(payload);
-        permissionId = created.id ?? created.data?.id;
+        await createPermission(payload);
       }
 
       setShowModal(false);
-      await renderGrid();
+      refreshGrid();
       window.dispatchEvent(new Event("permission-changed"));
     } catch (err) {
       setError(err.message || "Gagal menyimpan permission");

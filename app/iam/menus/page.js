@@ -48,7 +48,7 @@ export default function MenusPage() {
   const gridRef = useRef(null);
   const gridInstance = useRef(null);
   const gridjsRef = useRef(null);
-  const flatMenusRef = useRef([]);
+  const flatMenusRef = useRef([]); // array of { menu, depth }
 
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyMenuForm);
@@ -56,71 +56,98 @@ export default function MenusPage() {
   const [error, setError] = useState(null);
 
   const [permissionOptions, setPermissionOptions] = useState([]);
-  // Same fix as RolePage: the click listener below is attached once on
-  // mount, so reading permissionOptions (state) inside openEditModal would
-  // always see the stale, empty value from that first render. This ref
-  // stays in sync and is read fresh every call.
   const permissionOptionsRef = useRef([]);
   const [excludedParentIds, setExcludedParentIds] = useState([]);
-
-  useEffect(() => {
-    getPermissions()
-      .then((perms) => {
-        setPermissionOptions(perms);
-        permissionOptionsRef.current = perms;
-      })
-      .catch(() => setPermissionOptions([]));
-  }, []);
-
-  const loadGridData = useCallback(async () => {
-    const menus = await getMenus();
-    const flat = flattenMenus(menus);
-    flatMenusRef.current = flat;
-
-    return flat.map(({ menu, depth }) => [
-      ...formatRow(menu, depth),
-      gridjsRef.current.html(
-        `<div style="white-space: nowrap;">
-            <a
-                href="javascript:void(0);"
-                class="js-edit-menu px-2 text-primary"
-                data-bs-toggle="tooltip"
-                data-bs-placement="top"
-                aria-label="Edit"
-                data-bs-original-title="Edit"
-                data-id="${menu.id}">
-                <i class="bx bx-pencil font-size-18"></i>
-            </a>
-            <a
-                href="javascript:void(0);"
-                class="js-delete-menu px-2 text-danger"
-                data-bs-toggle="tooltip"
-                data-bs-placement="top"
-                aria-label="Delete"
-                data-bs-original-title="Delete"
-                data-id="${menu.id}">
-                <i class="bx bx-trash-alt font-size-18"></i>
-            </a>
-        </div>`
-      ),
-    ]);
-  }, []);
 
   const renderGrid = useCallback(async () => {
     const gridjs = await waitForGlobal("gridjs");
     gridjsRef.current = gridjs;
 
-    if (!gridInstance.current) {
-      gridInstance.current = new gridjs.Grid({
-        columns,
-        pagination: true,
-        sort: true,
-        search: true,
-        data: loadGridData,
-      }).render(gridRef.current);
-    } else {
-      gridInstance.current.updateConfig({ data: loadGridData }).forceRender();
-    }
+    if (gridInstance.current) return;
+
+    gridInstance.current = new gridjs.Grid({
+      columns: [...columns],
+      sort: false,
+      search: {
+        server: {
+          url: (prev, keyword) => {
+            const url = new URL(prev, window.location.origin);
+            if (keyword) url.searchParams.set("search", keyword);
+            else url.searchParams.delete("search");
+            return url.toString();
+          },
+        },
+      },
+      pagination: {
+        limit: 20,
+        server: {
+          url: (prev, page, limit) => {
+            const url = new URL(prev, window.location.origin);
+            url.searchParams.set("page", page + 1);
+            url.searchParams.set("limit", limit);
+            return url.toString();
+          },
+        },
+      },
+      server: {
+        url: "/menus",
+        data: async (opts) => {
+          const relativeUrl = opts.url.replace(window.location.origin, "");
+          const query = relativeUrl.split("?")[1] ?? "";
+
+          const res = await getMenus(
+            Object.fromEntries(new URLSearchParams(query))
+          );
+
+          // Backend always returns the full nested tree, ignoring
+          // search/page/limit params, so we flatten it client-side here.
+          const flattened = flattenMenus(res.data);
+          flatMenusRef.current = flattened;
+
+          return {
+            data: flattened.map(({ menu, depth }) => [
+              ...formatRow(menu, depth),
+              gridjsRef.current.html(
+                `<div style="white-space: nowrap;">
+                      <a
+                          href="javascript:void(0);"
+                          class="js-view-menu px-2 text-primary"
+                          data-bs-toggle="tooltip"
+                          data-bs-placement="top"
+                          aria-label="View"
+                          data-bs-original-title="View"
+                          data-id="${menu.id}">
+                          <i class="bx bxs-user-detail font-size-18"></i>
+                      </a>
+                      <a
+                          href="javascript:void(0);"
+                          class="js-edit-menu px-2 text-primary"
+                          data-bs-toggle="tooltip"
+                          data-bs-placement="top"
+                          aria-label="Edit"
+                          data-bs-original-title="Edit"
+                          data-id="${menu.id}">
+                          <i class="bx bx-pencil font-size-18"></i>
+                      </a>
+                      <a
+                          href="javascript:void(0);"
+                          class="js-delete-menu px-2 text-danger"
+                          data-bs-toggle="tooltip"
+                          data-bs-placement="top"
+                          aria-label="Delete"
+                          data-bs-original-title="Delete"
+                          data-id="${menu.id}">
+                          <i class="bx bx-trash-alt font-size-18"></i>
+                      </a>
+                  </div>`
+              ),
+            ]),
+            // Backend doesn't actually paginate, so total = full flattened count.
+            total: flattened.length,
+          };
+        },
+      },
+    }).render(gridRef.current);
 
     gridInstance.current.on("ready", () => {
       if (window.bootstrap) {
@@ -129,10 +156,13 @@ export default function MenusPage() {
           .forEach((el) => new window.bootstrap.Tooltip(el));
       }
     });
-  }, [loadGridData]);
+  }, []);
+
+  const refreshGrid = useCallback(() => {
+    gridInstance.current?.forceRender();
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
     renderGrid().catch(() => { });
 
     const container = gridRef.current;
@@ -145,11 +175,25 @@ export default function MenusPage() {
     container?.addEventListener("click", handleClick);
 
     return () => {
-      cancelled = true;
       container?.removeEventListener("click", handleClick);
-      if (cancelled) gridInstance.current?.destroy?.();
+      gridInstance.current?.destroy?.();
+      gridInstance.current = null;
     };
   }, [renderGrid]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const perms = await getPermissions();
+        const list = Array.isArray(perms) ? perms : (perms?.data ?? []);
+        setPermissionOptions(list);
+        permissionOptionsRef.current = list;
+      } catch {
+        setPermissionOptions([]);
+        permissionOptionsRef.current = [];
+      }
+    })();
+  }, []);
 
   function openAddModal() {
     setForm(emptyMenuForm);
@@ -162,8 +206,12 @@ export default function MenusPage() {
     const found = flatMenusRef.current.find(({ menu }) => menu.id === id)?.menu;
     if (!found) return;
 
+    const permList = Array.isArray(permissionOptionsRef.current)
+      ? permissionOptionsRef.current
+      : (permissionOptionsRef.current?.data ?? []);
+
     const currentPermissionIds = (found.permissions ?? [])
-      .map((name) => permissionOptionsRef.current.find((perm) => perm.name === name)?.id)
+      .map((name) => permList.find((perm) => perm.name === name)?.id)
       .filter((permId) => permId !== undefined);
 
     setForm({
@@ -209,7 +257,7 @@ export default function MenusPage() {
         icon: "success",
         confirmButtonColor: "#51d28c",
       });
-      await renderGrid();
+      refreshGrid();
       window.dispatchEvent(new Event("menu-changed"));
     } catch (err) {
       await Swal.fire({
@@ -249,7 +297,7 @@ export default function MenusPage() {
       await syncMenuPermissions(menuId, form.permissions);
 
       setShowModal(false);
-      await renderGrid();
+      refreshGrid();
       window.dispatchEvent(new Event("menu-changed"));
     } catch (err) {
       setError(err.message || "Gagal menyimpan menu");

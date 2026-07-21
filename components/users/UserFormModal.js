@@ -1,8 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getRoles } from "@/lib/roles";
-
 export const emptyUserForm = {
   id: null,
   name: "",
@@ -20,33 +17,10 @@ export default function UserFormModal({
   onClose,
   saving,
   error,
+  roleOptions = [],
+  loadingRoles = false,
+  rolesError = null,
 }) {
-  const [roleOptions, setRoleOptions] = useState([]);
-  const [loadingRoles, setLoadingRoles] = useState(true);
-  const [rolesError, setRolesError] = useState(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      setLoadingRoles(true);
-      setRolesError(null);
-      try {
-        const roles = await getRoles();
-        if (!cancelled) setRoleOptions(roles);
-      } catch (err) {
-        if (!cancelled) setRolesError(err.message || "Gagal memuat roles.");
-      } finally {
-        if (!cancelled) setLoadingRoles(false);
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   function toggleRole(name) {
     setForm((prev) => {
       const has = prev.roles.includes(name);
